@@ -1,0 +1,6 @@
+@EcoWasteApi_HostAddress = http://localhost:5162
+
+GET {{EcoWasteApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
