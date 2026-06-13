@@ -1,0 +1,10 @@
+**/.DS_Store
+**/.idea
+**/.git
+**/.gitignore
+**/bin
+**/obj
+**/TestResults
+**/*.user
+**/*.suo
+
