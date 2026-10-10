@@ -117,19 +117,31 @@ docker build --tag ecowaste-api:local .
 
 ## Prints do funcionamento
 
-As [evidências locais](output/validacao-local.txt) registram a execução real dos testes, os dois deploys Docker, as respostas HTTP, as migrations e o isolamento. Foram usadas portas 18081 e 18082 na validação local para preservar serviços já existentes no computador. O workflow usa 8081 e 8082 em um runner novo.
+A primeira execução do workflow **EcoWaste API CI/CD**, `add: devops pipeline #1`, foi disparada por push na branch `main` (commit `e3af5ef`) e terminou com status **Success**, em **1 minuto e 39 segundos**. O build Release, a construção da imagem Docker e os **7 testes automatizados** foram aprovados.
 
-As evidências da primeira execução **no GitHub** permanecem pendentes. Após enviar o commit, abra **Actions → EcoWaste API CI/CD → execução** e capture:
+Os deploys no runner confirmaram staging na porta 8081 e produção na porta 8082, MySQL 8.4 saudável, as duas migrations existentes e respostas HTTP 201 no cadastro, 200 no login e nas consultas autenticadas e 401 sem autenticação. Foram confirmados a mesma imagem nos dois ambientes e o isolamento de bancos, redes, volumes e dados. A limpeza dos ambientes temporários foi executada ao final.
 
-| Evidência remota | Onde obter | Situação |
-| --- | --- | --- |
-| Build | Etapas `Build` com compilação e imagem | Pendente |
-| Testes | Etapa `Testes`, quantidade e resultado | Pendente |
-| Staging | Etapa `Staging`, estados e migrations | Pendente |
-| Produção | Etapas `Produção`, estados e isolamento | Pendente |
-| API funcionando | Logs dos HTTP 201, 200 e 401 nos dois deploys | Pendente |
+**Visão geral — Status Success e resultados consolidados da execução.**
 
-As capturas podem ser anexadas à entrega; os logs locais já estão incluídos no [PDF técnico](output/pdf/EcoWaste-API-DevOps.pdf). Nenhum resultado remoto é declarado antes de sua execução.
+![Execução bem-sucedida do pipeline](docs/images/01-resultado-geral.png)
+
+**Etapas — Build, testes, deploys e limpeza concluídos.**
+
+![Etapas concluídas do job ci-cd](docs/images/02-stages-da-pipeline.png)
+
+**Testes — 7 testes xUnit executados e 7 aprovados.**
+
+![Resultado dos sete testes automatizados](docs/images/03-testes.png)
+
+**Staging — Contêineres, migrations e validações HTTP na porta 8081.**
+
+![Implantação e verificação do ambiente staging](docs/images/04-deploy-staging.png)
+
+**Produção — Contêineres, migrations e validações HTTP na porta 8082.**
+
+![Implantação e verificação do ambiente production](docs/images/05-deploy-prod.png)
+
+As capturas também estão incorporadas ao PDF `output/pdf/EcoWaste-API-DevOps.pdf` e incluídas no ZIP de entrega. No GitHub, a execução pode ser consultada na aba **Actions → EcoWaste API CI/CD → add: devops pipeline #1**. Os ambientes foram implantados e verificados no runner temporário, sem hospedagem permanente.
 
 ## Tecnologias utilizadas
 
@@ -140,15 +152,3 @@ As capturas podem ser anexadas à entrega; os logs locais já estão incluídos 
 - xUnit, Moq e Microsoft.NET.Test.Sdk.
 - Docker e Docker Compose v2.
 - GitHub Actions, Bash, OpenSSL, curl e jq para o pipeline.
-
-## Checklist de entrega
-
-Checklist obrigatório da atividade, com o arquivo Compose identificado pelo nome existente no projeto. Os itens com evidências remotas dependem da primeira execução no GitHub.
-
-- [x] Projeto compactado em .ZIP com estrutura organizada.
-- [x] Dockerfile funcional.
-- [x] Docker Compose (`compose.yaml`).
-- [x] Pipeline com etapas de build, teste e deploy (configuração validada e comandos executados localmente).
-- [ ] README.md com instruções e prints (instruções e logs locais incluídos; prints remotos pendentes).
-- [ ] Documentação técnica com evidências (PDF produzido com evidências locais; prints remotos pendentes).
-- [ ] Deploy realizado nos ambientes staging e produção (validado localmente; execução no GitHub pendente).
