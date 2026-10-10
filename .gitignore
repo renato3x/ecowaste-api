@@ -3,3 +3,10 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+**/.DS_Store
+**/.idea/
+TestResults/
+.env
+.env.*
+*.zip
+/output/

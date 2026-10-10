@@ -1,36 +1,46 @@
 services:
   mysql:
     image: mysql:8.4
-    container_name: mysql-ecowaste
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: ecowaste
-      MYSQL_USER: ecowaste
-      MYSQL_PASSWORD: root
-    ports:
-      - "3306:3306"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ecowaste-local-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ecowaste}
+      MYSQL_USER: ${MYSQL_USER:-ecowaste}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ecowaste-local-password}
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - backend
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test:
+        - CMD-SHELL
+        - MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e 'SELECT 1' >/dev/null
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 24
+      start_period: 30s
 
   api:
+    image: ${API_IMAGE:-ecowaste-api:local}
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ecowaste-api
-    restart: always
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
     environment:
-      ConnectionStrings__DefaultConnection: "server=mysql;port=3306;database=ecowaste;user=root;password=root"
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__DefaultConnection: server=mysql;port=3306;database=${MYSQL_DATABASE:-ecowaste};user=${MYSQL_USER:-ecowaste};password=${MYSQL_PASSWORD:-ecowaste-local-password}
+      Jwt__Key: ${JWT_KEY:-ecowaste-local-only-key-with-at-least-32-characters}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    networks:
+      - backend
 
 volumes:
   mysql_data:
+
+networks:
+  backend:
+    driver: bridge

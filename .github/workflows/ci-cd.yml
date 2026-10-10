@@ -1,0 +1,116 @@
+name: EcoWaste API CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci-cd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      API_IMAGE: ecowaste-api:${{ github.sha }}
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+    steps:
+      - name: Build | Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Build | Preparar SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build | Restaurar e compilar em Release
+        run: |
+          dotnet restore EcoWasteApi.sln
+          dotnet build EcoWasteApi.sln --configuration Release --no-restore
+
+      - name: Build | Construir a imagem e obter MySQL
+        run: |
+          docker build --tag "$API_IMAGE" .
+          docker pull mysql:8.4
+
+      - name: Testes | Executar os testes existentes
+        run: >-
+          dotnet test EcoWasteApi.Tests/EcoWasteApi.Tests.csproj
+          --configuration Release --no-build --no-restore
+          --logger "console;verbosity=normal"
+
+      - name: Deploy | Gerar credenciais temporárias
+        run: |
+          for environment in STAGING PRODUCTION; do
+            for setting in MYSQL_ROOT_PASSWORD MYSQL_PASSWORD JWT_KEY; do
+              value=$(openssl rand -hex 32)
+              echo "::add-mask::$value"
+              echo "${environment}_${setting}=$value" >> "$GITHUB_ENV"
+            done
+          done
+
+      - name: Staging | Implantar e verificar
+        run: bash .github/scripts/deploy.sh staging 8081
+
+      - name: Produção | Implantar e verificar
+        run: bash .github/scripts/deploy.sh production 8082
+
+      - name: Produção | Confirmar isolamento e imagem única
+        run: |
+          image_id=$(docker image inspect "$API_IMAGE" --format '{{.Id}}')
+          for environment in staging production; do
+            api=$(docker compose -p "$environment" ps -q api)
+            test "$(docker inspect "$api" --format '{{.Image}}')" = "$image_id"
+            docker compose -p "$environment" ps
+          done
+          staging_db=$(docker compose -p staging ps -q mysql)
+          production_db=$(docker compose -p production ps -q mysql)
+          test "$staging_db" != "$production_db"
+          staging_volume=$(docker inspect "$staging_db" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}')
+          production_volume=$(docker inspect "$production_db" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/mysql"}}{{.Name}}{{end}}{{end}}')
+          test -n "$staging_volume" && test -n "$production_volume"
+          test "$staging_volume" != "$production_volume"
+          staging_network=$(docker network inspect staging_backend --format '{{.Id}}')
+          production_network=$(docker network inspect production_backend --format '{{.Id}}')
+          test "$staging_network" != "$production_network"
+          # O usuário criado em staging não pode existir no banco de produção.
+          code=$(jq -n --arg password "$STAGING_SMOKE_PASSWORD" \
+            '{email:"ci-staging@example.com",password:$password}' | \
+            curl --silent --show-error --max-time 10 --output /dev/null \
+              --write-out '%{http_code}' --header 'Content-Type: application/json' \
+              --data-binary @- http://127.0.0.1:8082/api/auth/login)
+          test "$code" = 401
+          echo "Imagem única, bancos, volumes, redes e dados isolados: OK."
+          {
+            echo '## EcoWaste API'
+            echo '- Build Release e imagem Docker: OK.'
+            echo '- Testes existentes: OK.'
+            echo '- Staging (8081) e production (8082): HTTP e migrations OK.'
+            echo '- Mesma imagem; bancos, redes, volumes e dados isolados: OK.'
+            echo '- Ambientes temporários; limpeza executada na etapa final.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Diagnóstico | Logs em caso de falha
+        if: failure()
+        run: |
+          for environment in staging production; do
+            docker compose -p "$environment" ps --all
+            docker compose -p "$environment" logs --no-color --tail 100
+          done
+
+      - name: Limpeza | Encerrar ambientes temporários
+        if: always()
+        run: |
+          status=0
+          for environment in staging production; do
+            docker compose -p "$environment" down --volumes --remove-orphans || status=1
+          done
+          exit "$status"

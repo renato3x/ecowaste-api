@@ -7,4 +7,10 @@
 **/TestResults
 **/*.user
 **/*.suo
+**/.env
+**/.env.*
+**/*.zip
+output/
+.github/
+README.md
 
